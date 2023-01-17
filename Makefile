@@ -1,69 +1,10 @@
-# This cell ensures you have the correct architecture for your respective GPU
-# If you command is not found, look through these GPUs, find the respective
-# GPU and add them to the archTypes dictionary
-
-# Tesla V100
-# ARCH= -gencode arch=compute_70,code=[sm_70,compute_70]
-
-# Tesla K80 
-# ARCH= -gencode arch=compute_37,code=sm_37
-
-# GeForce RTX 2080 Ti, RTX 2080, RTX 2070, Quadro RTX 8000, Quadro RTX 6000, Quadro RTX 5000, Tesla T4, XNOR Tensor Cores
-# ARCH= -gencode arch=compute_75,code=[sm_75,compute_75]
-
-# Jetson XAVIER
-# ARCH= -gencode arch=compute_72,code=[sm_72,compute_72]
-
-# GTX 1080, GTX 1070, GTX 1060, GTX 1050, GTX 1030, Titan Xp, Tesla P40, Tesla P4
-# ARCH= -gencode arch=compute_61,code=sm_61
-
-# GP100/Tesla P100 - DGX-1
-# ARCH= -gencode arch=compute_60,code=sm_60
-
-# For Jetson TX1, Tegra X1, DRIVE CX, DRIVE PX - uncomment:
-# ARCH= -gencode arch=compute_53,code=[sm_53,compute_53]
-
-# For Jetson Tx2 or Drive-PX2 uncomment:
-# ARCH= -gencode arch=compute_62,code=[sm_62,compute_62]
-import os
-os.environ['GPU_TYPE'] = str(os.popen('nvidia-smi --query-gpu=name --format=csv,noheader').read())
-
-def getGPUArch(argument):
-  try:
-    argument = argument.strip()
-    # All Colab GPUs
-    archTypes = {
-        "Tesla V100-SXM2-16GB": "-gencode arch=compute_70,code=[sm_70,compute_70]",
-        "Tesla K80": "-gencode arch=compute_37,code=sm_37",
-        "Tesla T4": "-gencode arch=compute_75,code=[sm_75,compute_75]",
-        "Tesla P40": "-gencode arch=compute_61,code=sm_61",
-        "Tesla P4": "-gencode arch=compute_61,code=sm_61",
-        "Tesla P100-PCIE-16GB": "-gencode arch=compute_60,code=sm_60"
-
-      }
-    return archTypes[argument]
-  except KeyError:
-    return "GPU must be added to GPU Commands"
-os.environ['ARCH_VALUE'] = getGPUArch(os.environ['GPU_TYPE'])
-
-print("GPU Type: " + os.environ['GPU_TYPE'])
-print("ARCH Value: " + os.environ['ARCH_VALUE'])
-```
-Delete the Makefile to create a new one that will work:
-
-`%rm Makefile`
-
-```
-#colab occasionally shifts dependencies around, at the time of authorship, this Makefile works for building Darknet on Colab
-
-%%writefile Makefile
-GPU=1
-CUDNN=1
+GPU=0
+CUDNN=0
 CUDNN_HALF=0
-OPENCV=1
+OPENCV=0
 AVX=0
 OPENMP=0
-LIBSO=1
+LIBSO=0
 ZED_CAMERA=0
 ZED_CAMERA_v2_8=0
 
@@ -76,15 +17,43 @@ ZED_CAMERA_v2_8=0
 USE_CPP=0
 DEBUG=0
 
-ARCH= -gencode arch=compute_35,code=sm_35 \
-      -gencode arch=compute_50,code=[sm_50,compute_50] \
-      -gencode arch=compute_52,code=[sm_52,compute_52] \
-	    -gencode arch=compute_61,code=[sm_61,compute_61] \
-      -gencode arch=compute_37,code=sm_37
-
-ARCH= -gencode arch=compute_60,code=sm_60
+ARCH= -gencode arch=compute_75,code=[sm_75,compute_75]
 
 OS := $(shell uname)
+
+# GeForce RTX 3070, 3080, 3090
+# ARCH= -gencode arch=compute_86,code=[sm_86,compute_86]
+
+# Kepler GeForce GTX 770, GTX 760, GT 740
+# ARCH= -gencode arch=compute_30,code=sm_30
+
+# Tesla A100 (GA100), DGX-A100, RTX 3080
+# ARCH= -gencode arch=compute_80,code=[sm_80,compute_80]
+
+# Tesla V100
+# ARCH= -gencode arch=compute_70,code=[sm_70,compute_70]
+
+# GeForce RTX 2080 Ti, RTX 2080, RTX 2070, Quadro RTX 8000, Quadro RTX 6000, Quadro RTX 5000, Tesla T4, XNOR Tensor Cores
+# ARCH= -gencode arch=compute_75,code=[sm_75,compute_75]
+
+# Jetson XAVIER
+# ARCH= -gencode arch=compute_72,code=[sm_72,compute_72]
+
+# GTX 1080, GTX 1070, GTX 1060, GTX 1050, GTX 1030, Titan Xp, Tesla P40, Tesla P4
+# ARCH= -gencode arch=compute_61,code=sm_61 -gencode arch=compute_61,code=compute_61
+
+# GP100/Tesla P100 - DGX-1
+# ARCH= -gencode arch=compute_60,code=sm_60
+
+# For Jetson TX1, Tegra X1, DRIVE CX, DRIVE PX - uncomment:
+# ARCH= -gencode arch=compute_53,code=[sm_53,compute_53]
+
+# For Jetson Tx2 or Drive-PX2 uncomment:
+# ARCH= -gencode arch=compute_62,code=[sm_62,compute_62]
+
+# For Tesla GA10x cards, RTX 3090, RTX 3080, RTX 3070, RTX A6000, RTX A40 uncomment:
+# ARCH= -gencode arch=compute_86,code=[sm_86,compute_86]
+
 
 VPATH=./src/
 EXEC=darknet
@@ -133,7 +102,11 @@ COMMON+= `pkg-config --cflags opencv4 2> /dev/null || pkg-config --cflags opencv
 endif
 
 ifeq ($(OPENMP), 1)
-CFLAGS+= -fopenmp
+    ifeq ($(OS),Darwin) #MAC
+	    CFLAGS+= -Xpreprocessor -fopenmp
+	else
+		CFLAGS+= -fopenmp
+	endif
 LDFLAGS+= -lgomp
 endif
 
@@ -175,7 +148,7 @@ LDFLAGS+= -L/usr/local/zed/lib -lsl_zed
 endif
 endif
 
-OBJ=image_opencv.o http_stream.o gemm.o utils.o dark_cuda.o convolutional_layer.o list.o image.o activations.o im2col.o col2im.o blas.o crop_layer.o dropout_layer.o maxpool_layer.o softmax_layer.o data.o matrix.o network.o connected_layer.o cost_layer.o parser.o option_list.o darknet.o detection_layer.o captcha.o route_layer.o writing.o box.o nightmare.o normalization_layer.o avgpool_layer.o coco.o dice.o yolo.o detector.o layer.o compare.o classifier.o local_layer.o swag.o shortcut_layer.o activation_layer.o rnn_layer.o gru_layer.o rnn.o rnn_vid.o crnn_layer.o demo.o tag.o cifar.o go.o batchnorm_layer.o art.o region_layer.o reorg_layer.o reorg_old_layer.o super.o voxel.o tree.o yolo_layer.o gaussian_yolo_layer.o upsample_layer.o lstm_layer.o conv_lstm_layer.o scale_channels_layer.o sam_layer.o
+OBJ=image_opencv.o http_stream.o gemm.o utils.o dark_cuda.o convolutional_layer.o list.o image.o activations.o im2col.o col2im.o blas.o crop_layer.o dropout_layer.o maxpool_layer.o softmax_layer.o data.o matrix.o network.o connected_layer.o cost_layer.o parser.o option_list.o darknet.o detection_layer.o captcha.o route_layer.o writing.o box.o nightmare.o normalization_layer.o avgpool_layer.o coco.o dice.o yolo.o detector.o layer.o compare.o classifier.o local_layer.o swag.o shortcut_layer.o representation_layer.o activation_layer.o rnn_layer.o gru_layer.o rnn.o rnn_vid.o crnn_layer.o demo.o tag.o cifar.o go.o batchnorm_layer.o art.o region_layer.o reorg_layer.o reorg_old_layer.o super.o voxel.o tree.o yolo_layer.o gaussian_yolo_layer.o upsample_layer.o lstm_layer.o conv_lstm_layer.o scale_channels_layer.o sam_layer.o
 ifeq ($(GPU), 1)
 LDFLAGS+= -lstdc++
 OBJ+=convolutional_kernels.o activation_kernels.o im2col_kernels.o col2im_kernels.o blas_kernels.o crop_layer_kernels.o dropout_layer_kernels.o maxpool_layer_kernels.o network_kernels.o avgpool_layer_kernels.o
@@ -220,4 +193,4 @@ setchmod:
 .PHONY: clean
 
 clean:
-	rm -rf $(OBJS) $(EXEC) $(LIBNAMESO) $(APPNAMESO
+	rm -rf $(OBJS) $(EXEC) $(LIBNAMESO) $(APPNAMESO)
